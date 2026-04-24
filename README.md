@@ -1,22 +1,55 @@
 # tapthatcar
 
 A dynamic data-aggregation and decision engine for used car listings,
-built on Bun + Fastify.
+served by a Bun + Fastify backend and a React + Vite frontend.
 
-It pulls listings from configurable sources (carsome.my today),
+The engine pulls listings from configurable sources (carsome.my today),
 auto-discovers the schema each run, classifies every field as
 `value` / `context` / `auxiliary`, cleans and dedupes the rows,
 derives weights from data instead of hard-coding them, and returns
 the top-ranked cars with per-listing explanations.
 
-## Run
+## Layout
+
+```
+.
+├── index.ts              # Bun entry — spins up Fastify on :3000
+├── src/
+│   ├── server.ts         # Fastify routes + permissive CORS
+│   ├── engine/           # schema discovery, normalise, weights, score
+│   ├── sources/          # source adapters (carsome) + bundled sample
+│   └── util/             # parsers + stats helpers
+├── scripts/
+│   ├── smoke.ts          # engine smoke test against bundled sample
+│   └── http-smoke.ts     # exercises every HTTP route via Fastify.inject
+└── web/                  # Vite + React + TypeScript frontend
+    ├── src/
+    │   ├── App.tsx
+    │   ├── api.ts
+    │   ├── types.ts
+    │   ├── components/   # CarCard, SchemaPanel, Toolbar
+    │   └── util/
+    ├── index.html
+    └── vite.config.ts
+```
+
+## Quick start
 
 ```bash
+# 1. Backend
 bun install
-bun run start          # serves on :3000
-bun run smoke          # runs the engine against the bundled sample
-bun run smoke:http     # exercises every HTTP route in-process
+bun run start              # API on http://localhost:3000
+
+# 2. Frontend (separate terminal)
+cd web
+bun install                # or npm install / pnpm install
+bun run dev                # UI on http://localhost:5173
 ```
+
+The Vite dev server proxies `/api/*` to `http://localhost:3000`, so
+the frontend talks to the backend with `fetch('/api/listings/top')`.
+For production, run `bun run build` in `web/` and serve `web/dist/`
+from any static host.
 
 ## HTTP endpoints
 
@@ -78,6 +111,34 @@ instead of `brand`/`year`/`price` — the schema discovery learns both.
    listing the strongest contributors and any cohort-relative weak
    spots.
 
+## Frontend
+
+Built with **React 18 + Vite + TypeScript** — chosen because it's the
+default modern stack for this kind of data-driven dashboard, has the
+biggest ecosystem, and Vite's dev server gives instant HMR with
+near-zero config. Plain CSS (no Tailwind) keeps the dependency tree
+small.
+
+The UI re-renders entirely from the API response — there are no
+hard-coded fields. Three panels:
+
+* **Toolbar** — limit input, mode toggle (live/offline), plus
+  dropdowns auto-generated from any context field with low cardinality
+  (e.g. brand, fuel, transmission). Selecting an option re-runs the
+  pipeline server-side with that filter applied.
+* **Listings** — a card per ranked car with its score badge, the
+  engine's natural-language summary, strengths vs cohort, trade-offs,
+  and a per-field contribution bar chart.
+* **Schema panel** — shows the discovered weights as bars, plus the
+  full set of value / context / auxiliary fields the engine found in
+  this run. If you point a different source at the engine, this
+  refreshes itself.
+
+If the live carsome.my fetch fails (network blocked, layout drift), the
+backend returns the bundled sample dataset and sets `usedFallback: true`;
+the UI surfaces that as a yellow banner so it's obvious you're not
+looking at fresh data.
+
 ## Adding a new source
 
 Implement `SourceAdapter` from `src/sources/types.ts`:
@@ -89,5 +150,5 @@ class MyAdapter implements SourceAdapter {
 }
 ```
 
-Then register it in `src/sources/index.ts`. The engine doesn't need
-any changes — schema discovery picks up whatever fields you produce.
+Then register it in `src/sources/index.ts`. The engine and the UI
+both pick up the new fields automatically.

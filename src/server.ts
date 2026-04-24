@@ -32,8 +32,26 @@ function extractFilters(query: TopQuery): Record<string, string> {
 	return out
 }
 
+/**
+ * Minimal permissive CORS so the Vite dev server (default :5173) can
+ * call the API. We don't pull in @fastify/cors to keep deps tight; this
+ * hook handles the preflight + adds the headers everywhere.
+ */
+function registerCors(fastify: FastifyInstance) {
+	fastify.addHook('onRequest', async (req, reply) => {
+		reply.header('access-control-allow-origin', req.headers.origin ?? '*')
+		reply.header('access-control-allow-methods', 'GET,POST,OPTIONS')
+		reply.header('access-control-allow-headers', 'content-type')
+		reply.header('access-control-max-age', '600')
+		if (req.method === 'OPTIONS') {
+			reply.code(204).send()
+		}
+	})
+}
+
 export function buildServer(): FastifyInstance {
 	const fastify = Fastify({ logger: true })
+	registerCors(fastify)
 
 	fastify.get('/', async () => ({
 		name: 'tapthatcar',
