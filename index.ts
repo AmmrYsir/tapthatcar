@@ -1,13 +1,12 @@
-import Fastify from 'fastify'
+import { buildServer } from './src/server.ts'
 
-const fastify = Fastify({ logger: true })
+const port = Number(process.env.PORT ?? 3000)
+const host = process.env.HOST ?? '0.0.0.0'
 
-fastify.get('/', async (request, reply) => {
-	return { hello: 'world' }
-})
+const fastify = buildServer()
 
 try {
-	await fastify.listen({ port: 3000, host: '0.0.0.0' })
+	await fastify.listen({ port, host })
 } catch (err) {
 	fastify.log.error(err)
 	process.exit(1)
